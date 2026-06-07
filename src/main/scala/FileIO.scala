@@ -1,39 +1,51 @@
 import scala.io.Source
+import java.io.FileNotFoundException
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
 object FileIO {
 
-  /**
-   * Read subscriptions from JSON file.
-   * @param filePath path to subscriptions file
-   * @return list of options: Some(Subscription) for valid entries, None for malformed entries
-   *         returns empty list if file not found
-   */
-  def readSubscriptions(filePath: String): List[Option[Subscription]] = {
+  def readSubscriptions(filePath: String): Option[List[Option[Subscription]]] = {
     implicit val formats: Formats = DefaultFormats
-    val source = Source.fromFile(filePath)
-    val content = source.mkString
-    source.close()
-
-    val json = parse(content)
-    val subscriptions = json.extract[List[Map[String, String]]]
-
-    subscriptions.map { sub =>
-      Some(Subscription(sub("name"), sub("url")))
+    try {
+      val source = Source.fromFile(filePath)
+      val content = source.mkString
+      source.close()
+      try {
+        val json = parse(content)
+        val rawList = json.extract[List[Map[String, String]]]
+        val subscriptions = rawList.map { sub =>
+          (sub.get("name"), sub.get("url")) match {
+            case (Some(name), Some(url)) => Some(Subscription(name, url))
+            case _ =>
+              println("Warning: Skipping malformed subscription (missing 'name' or 'url' field)")
+              None
+          }
+        }
+        Some(subscriptions)
+      } catch {
+        case _: Exception =>
+          println(s"Error: Could not load $filePath - invalid JSON format")
+          None
+      }
+    } catch {
+      case _: FileNotFoundException =>
+        println(s"Error: Could not load $filePath - file not found")
+        None
     }
   }
 
-  /**
-   * Download feed JSON from URL.
-   * @param url Reddit feed URL
-   * @return Option containing JSON as String, None on network error or timeout
-   */
-  def downloadFeed(url: String): Option[String] = {
-    val source = Source.fromURL(url)
-    val content = source.mkString
-    source.close()
-    Some(content)
+  def downloadFeed(subscription: Subscription): Option[String] = {
+    try {
+      val source = Source.fromURL(subscription.url)
+      val content = source.mkString
+      source.close()
+      Some(content)
+    } catch {
+      case _: Exception =>
+        println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
+        None
+    }
   }
 
   /**
