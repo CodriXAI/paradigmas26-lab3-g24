@@ -1,9 +1,21 @@
+import org.apache.spark.sql.SparkSession
+
 object Main {
   def main(args: Array[String]): Unit = {
+    // Spark Session
+    val spark = SparkSession.builder()
+      .appName("RedditNER")
+      .master("local[*]")
+      .getOrCreate()
+
+    val sc = spark.sparkContext
+
     // Parse command-line arguments
     val cmdArgs = CommandLineArgs.parse(args) match {
       case Some(parsed) => parsed
-      case None => return // scopt prints error messages
+      case None =>
+        spark.stop()
+        return
     }
 
     // Load subscriptions
@@ -11,6 +23,10 @@ object Main {
 
     // Filter out malformed subscriptions (None values)
     val subscriptions = subscriptionOpts.flatten
+
+    
+    // Ejercicio-2a
+    val subscriptionsRDD = sc.parallelize(subscriptions)
 
     // Download feeds and parse posts, tracking success/failure
     val downloadResults = subscriptions.map { subscription =>
@@ -53,6 +69,7 @@ object Main {
     // Check if we have any posts to process
     if (filteredPosts.isEmpty) {
       println("Error: No valid posts downloaded after filtering")
+      spark.stop()
       return
     }
 
@@ -72,5 +89,7 @@ object Main {
     println(Formatters.formatTypeStats(typeStats))
     println()
     println(Formatters.formatEntityStats(entityCounts, cmdArgs.topK))
+
+    spark.stop()
   }
 }
