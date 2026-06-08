@@ -182,3 +182,22 @@ NUESTRO PIPELINE (Análisis del Esqueleto)
 
 * 8 -> **Es el Driver (Ranking e Impresiones en pantalla)**: Es la etapa final del programa. El ordenamiento descendente del ranking y el formateo de texto son procesos secuenciales que se ejecutan de manera central en el Driver. No pueden ser transformaciones de Spark porque no generan un nuevo RDD, sino que consumen el resultado final distribuido mediante **acciones (como collect)** para generar un **efecto secundario (la salida en consola)**.
   
+### c) Barreras de sincronización y paralelismo
+
+#### Partes completamentes independientes son: 
+
+- FileIO.downloadFeed(...)
+- JsonParser.parsePosts(...)
+- Analizer.filterEmptyPosts(...)
+- Analyzer.detectEntities(...)
+
+#### Partes que son barreras de sincronización (requiere que todos los workers terminen):
+
+- downloadResults.count(...)
+- if (filteredPosts.isEmpty) - verificación de post vacios 
+- Analizer.countEntities
+- Analizer.countByType
+- .sortBy{...}
+
+Los pasos de descarga, parseo, filtrado y detección de entidades son completamente independientes, cada worker opera sobre su porción de datos sin coordinarse con otros, y el resultado de uno no afecta al de los demás.
+Las barreras aparecen exactamente donde el resultado depende de la colección completa, cálculo de estadísticas globales (conteos, promedios), el chequeo de isEmpty, y las dos agregaciones por clave (countEntities y countByType). En estas etapas Spark ejecuta un shuffle, redistribuye los datos entre workers según la clave, y ningún worker puede producir su parte del resultado final hasta que todos hayan terminado la fase anterior.
