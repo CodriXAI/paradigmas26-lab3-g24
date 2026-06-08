@@ -12,18 +12,20 @@ DRIVER —> Lectura del archivo inicial
 
 **--- PASO 1: Lectura de suscripciones ---**
 
-* **Input:** subscriptions.json (archivo)
+- **Input:** subscriptions.json (archivo)
 
-* **Output:** List[Subscription]
+- **Output:** List[Subscription]
 
-* **Tipo:** List[Subscription]
+- **Tipo:** List[Subscription]
 
 **--- PASO 2: Descarga de feeds ⟿ PARALELIZABLE ---**
 
-* **Input:** List[Subscription]
+- **Input:** List[Subscription]
 
-* **Output:** List[(Option[String], Subscription)]
-(JSON del feed o None si falla)
+- **Output:** List[(Option[String], Subscription)]
+  (JSON del feed o None si falla)
+
+- **Tipo:** List[(Option[String], Subscription)]
 
 Independiente por cada suscripción
 
@@ -33,6 +35,8 @@ Independiente por cada suscripción
 
 • **Output:** List[Post]
 
+• **Tipo:** List[Post]
+
 Cada feed se procesa en paralelo
 
 **--- PASO 4: Filtrado de posts vacíos ⟿ PARALELIZABLE ---**
@@ -40,6 +44,8 @@ Cada feed se procesa en paralelo
 • **Input:** List[Post]
 
 • **Output:** List[Post] (solo válidos)
+
+• **Tipo:** List[Post]
 
 Evaluación independiente por post
 
@@ -49,6 +55,8 @@ Evaluación independiente por post
 
 • **Output:** List[NamedEntity]
 
+• **Tipo:** List[NamedEntity]
+
 Procesamiento paralelo de posts
 
 **--- PASO 6: Conversión a pares (tipo, nombre) → 1 ⟿ PARALELIZABLE ---**
@@ -56,6 +64,8 @@ Procesamiento paralelo de posts
 • **Input:** List[NamedEntity]
 
 • **Output:** List[((String, String), Int)]
+
+• **Tipo:** List[((String, String), Int)]
 
 Transformación independiente por entidad
 
@@ -65,6 +75,8 @@ Transformación independiente por entidad
 
 • **Output:** List[((String, String), Int)] (con totales)
 
+• **Tipo:** List[((String, String), Int)]
+
 SINCRONIZACIÓN: todos los workers deben terminar
 
 **--- PASO 8: Ranking y formateo → DRIVER ---**
@@ -72,6 +84,8 @@ SINCRONIZACIÓN: todos los workers deben terminar
 • **Input:** List[((String, String), Int)]
 
 • **Output:** Resultados ordenados por pantalla
+
+• **Tipo:** String
 
 Ordenamiento: descendente por conteo, alfabético por tipo
 
