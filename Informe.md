@@ -8,55 +8,72 @@ El pipeline del programa sigue la siguiente secuencia de pasos:
 
 FLUJO DEL PIPELINE REDDIT NER
 
-DRIVER — Lectura del archivo inicial
+DRIVER —> Lectura del archivo inicial
 
---- PASO 1: Lectura de suscripciones
+**--- PASO 1: Lectura de suscripciones ---**
 
-Input: subscriptions.json (archivo)
-Output: List[Subscription]
-Tipo: List[Subscription]
+* **Input:** subscriptions.json (archivo)
 
---- PASO 2: Descarga de feeds ⟿ PARALELIZABLE
+* **Output:** List[Subscription]
 
-• Input: List[Subscription]
-• Output: List[(Option[String], Subscription)]
+* **Tipo:** List[Subscription]
+
+**--- PASO 2: Descarga de feeds ⟿ PARALELIZABLE ---**
+
+* **Input:** List[Subscription]
+
+* **Output:** List[(Option[String], Subscription)]
 (JSON del feed o None si falla)
-• Independiente por cada suscripción
 
---- PASO 3: Parseo JSON de posts ⟿ PARALELIZABLE
+Independiente por cada suscripción
 
-• Input: List[(Option[String], Subscription)]
-• Output: List[Post]
-• Cada feed se procesa en paralelo
+**--- PASO 3: Parseo JSON de posts ⟿ PARALELIZABLE ---**
 
---- PASO 4: Filtrado de posts vacíos ⟿ PARALELIZABLE
+• **Input:** List[(Option[String], Subscription)]
 
-• Input: List[Post]
-• Output: List[Post] (solo válidos)
-• Evaluación independiente por post
+• **Output:** List[Post]
 
---- PASO 5: Extracción de entidades ⟿ PARALELIZABLE
+Cada feed se procesa en paralelo
 
-• Input: List[Post]
-• Output: List[NamedEntity]
-• Procesamiento paralelo de posts
+**--- PASO 4: Filtrado de posts vacíos ⟿ PARALELIZABLE ---**
 
---- PASO 6: Conversión a pares (tipo, nombre) → 1 ⟿ PARALELIZABLE
+• **Input:** List[Post]
 
-• Input: List[NamedEntity]
-• Output: List[((String, String), Int)]
-• Transformación independiente por entidad
+• **Output:** List[Post] (solo válidos)
 
---- PASO 7: Conteo de entidades - reduceByKey ⟿ BARRERA
+Evaluación independiente por post
 
-• Input: List[((String, String), Int)]
-• Output: List[((String, String), Int)] (con totales)
-• ⚠ SINCRONIZACIÓN: todos los workers deben terminar
+**--- PASO 5: Extracción de entidades ⟿ PARALELIZABLE ---**
 
---- PASO 8: Ranking y formateo → DRIVER
-• Input: List[((String, String), Int)]
-• Output: Resultados ordenados por pantalla
-• Ordenamiento: descendente por conteo, alfabético por tipo
+• **Input:** List[Post]
+
+• **Output:** List[NamedEntity]
+
+Procesamiento paralelo de posts
+
+**--- PASO 6: Conversión a pares (tipo, nombre) → 1 ⟿ PARALELIZABLE ---**
+
+• **Input:** List[NamedEntity]
+
+• **Output:** List[((String, String), Int)]
+
+Transformación independiente por entidad
+
+**--- PASO 7: Conteo de entidades - reduceByKey ⟿ BARRERA ---**
+
+• **Input:** List[((String, String), Int)]
+
+• **Output:** List[((String, String), Int)] (con totales)
+
+SINCRONIZACIÓN: todos los workers deben terminar
+
+**--- PASO 8: Ranking y formateo → DRIVER ---**
+
+• **Input:** List[((String, String), Int)]
+
+• **Output:** Resultados ordenados por pantalla
+
+Ordenamiento: descendente por conteo, alfabético por tipo
 
 ### Tabla resumen de tipos Scala por conexión:
 
