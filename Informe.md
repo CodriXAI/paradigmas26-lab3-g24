@@ -184,14 +184,14 @@ NUESTRO PIPELINE (Análisis del Esqueleto)
   
 ### c) Barreras de sincronización y paralelismo
 
-#### partes completamentes independientes son : 
+#### Partes completamentes independientes son: 
 
 - FileIO.downloadFeed(...)
 - JsonParser.parsePosts(...)
 - Analizer.filterEmptyPosts(...)
 - Analyzer.detectEntities(...)
 
-#### partes que son barreras de sincronización (requiere que todos los workers terminen) :
+#### Partes que son barreras de sincronización (requiere que todos los workers terminen):
 
 - downloadResults.count(...)
 - if (filteredPosts.isEmpty) - verificación de post vacios 
