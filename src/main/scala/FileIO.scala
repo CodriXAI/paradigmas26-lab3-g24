@@ -10,17 +10,33 @@ object FileIO {
    * @return list of options: Some(Subscription) for valid entries, None for malformed entries
    *         returns empty list if file not found
    */
-  def readSubscriptions(filePath: String): List[Option[Subscription]] = {
+  def readSubscriptions(filePath: String): Option[List[Option[Subscription]]] = {
     implicit val formats: Formats = DefaultFormats
-    val source = Source.fromFile(filePath)
-    val content = source.mkString
-    source.close()
-
-    val json = parse(content)
-    val subscriptions = json.extract[List[Map[String, String]]]
-
-    subscriptions.map { sub =>
-      Some(Subscription(sub("name"), sub("url")))
+    try {
+      val source = Source.fromFile(filePath)
+      val content = source.mkString
+      source.close()
+      try {
+        val json = parse(content)
+        val rawList = json.extract[List[Map[String, String]]]
+        val subscriptions = rawList.map { sub =>
+          (sub.get("name"), sub.get("url")) match {
+            case (Some(name), Some(url)) => Some(Subscription(name, url))
+            case _ =>
+              println("Warning: Skipping malformed subscription (missing 'name' or 'url' field)")
+              None
+          }
+        }
+        Some(subscriptions)
+      } catch {
+        case _: Exception =>
+          println(s"Error: Could not load $filePath - invalid JSON format")
+          None
+      }
+    } catch {
+      case _: FileNotFoundException =>
+        println(s"Error: Could not load $filePath - file not found")
+        None
     }
   }
 
