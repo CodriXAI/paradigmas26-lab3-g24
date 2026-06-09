@@ -1,16 +1,39 @@
+import org.apache.spark.sql.SparkSession
+
 object Main {
   def main(args: Array[String]): Unit = {
+
     // Parse command-line arguments
     val cmdArgs = CommandLineArgs.parse(args) match {
       case Some(parsed) => parsed
-      case None => return // scopt prints error messages
+      case None => return
     }
 
-    // Load subscriptions
-    val subscriptionOpts = FileIO.readSubscriptions(cmdArgs.subscriptionFile)
+    // Configuration and start of the Spark Session
+    val spark = SparkSession.builder()
+      .appName("RedditNER")
+      .master("local[*]")
+      .getOrCreate()
+    val sc = spark.sparkContext
 
-    // Filter out malformed subscriptions (None values)
-    val subscriptions = subscriptionOpts.flatten
+    // Temporarily disable noisy Spark logs
+    spark.sparkContext.setLogLevel("OFF")
+
+    // Loading and initializing subscriptions in the Driver
+    val subscriptions = FileIO.readSubscriptions(cmdArgs.subscriptionFile) match {
+      case None => spark.stop(); return
+      case Some(list) => list.flatten
+    }
+
+    // Validation: if there are no valid subscriptions, stop the program
+    if (subscriptions.isEmpty) {
+      println("Error: No valid subscriptions found")
+      spark.stop()
+      return
+    }
+
+    // Parallelize subscriptions into RDD
+    val subscriptionsRDD = sc.parallelize(subscriptions)
 
     // Download feeds and parse posts, tracking success/failure
     val downloadResults = subscriptions.map { subscription =>
@@ -72,5 +95,7 @@ object Main {
     println(Formatters.formatTypeStats(typeStats))
     println()
     println(Formatters.formatEntityStats(entityCounts, cmdArgs.topK))
+
+    spark.stop()
   }
 }
