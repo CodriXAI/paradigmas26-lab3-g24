@@ -47,10 +47,14 @@ object FileIO {
    * @return Option containing JSON as String, None on network error or timeout
    */
   def downloadFeed(url: String): Option[String] = {
-    val source = Source.fromURL(url)
-    val content = source.mkString
-    source.close()
-    Some(content)
+    try {
+      val source = Source.fromURL(url)
+      val content = source.mkString
+      source.close()
+      Some(content)
+    } catch {
+      case _: Exception => None
+    }
   }
 
   /**

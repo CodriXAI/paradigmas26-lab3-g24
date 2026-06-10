@@ -36,11 +36,20 @@ object Main {
     val subscriptionsRDD = sc.parallelize(subscriptions)
 
     // Download feeds and parse posts, tracking success/failure
-    val downloadResults = subscriptions.map { subscription =>
+    val allPostsRDD = subscriptionsRDD.flatMap { subscription =>
       val feedOpt = FileIO.downloadFeed(subscription.url)
-      val posts = feedOpt.fold(List[Post]())(JsonParser.parsePosts(_, subscription.name))
-      (feedOpt.isDefined, posts)
+      feedOpt match {
+        case None =>
+          println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
+          List.empty[Post]
+        case Some(content) =>
+          JsonParser.parsePosts(content, subscription.name)
+      }
     }
+
+    val filteredPostsRDD = allPostsRDD.filter(post =>
+      post.title.nonEmpty && post.selftext.nonEmpty
+    )
 
     // Count feed successes/failures
     val feedsSuccess = downloadResults.count(_._1)
