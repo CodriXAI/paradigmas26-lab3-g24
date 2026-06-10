@@ -293,3 +293,10 @@ Las tres restricciones no son arbitrarias: son consecuencias directas del modelo
 | **Efectos secundarios** | La evaluación lazy y el no-determinismo en el orden de ejecución |
 
 Broadcast variables y accumulators son la superficie controlada que Spark expone para los únicos dos patrones de estado compartido que puede garantizar correctamente: **lectura eficiente de datos grandes** y **acumulación de resultados parciales**.
+
+## Ejercicio 2 — Paralelizar la descarga de feeds
+
+**¿Qué pasaría si dejáramos propagar la excepción del flatMap?**
+Si dejáramos propagar dicha excepción, rompería el concepto de resiliencia que posee
+nuestro programa, pues al "explotar" por al menos un feed mal descargado, interrumpiría
+la ejecución completa, incluso si hay workers que han podido descargar sus feeds correctamente.
