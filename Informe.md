@@ -303,4 +303,21 @@ la ejecución completa, incluso si hay workers que han podido descargar sus feed
 
 ## Ejercicio 3 — Paralelizar el cómputo de entidades nombradas
 
+* reduceByKey es una barrera de sincronización. ¿Qué ocurre en el cluster en ese
+punto? ¿Por qué es inevitable para este problema?
 
+**reduceByKey** es una barrera de sincronización, pues necesita: por un lado debe agrupar los mismos valores asociados a una misma clave, para luego realizar la reducción mediante dicha agrupación en cada Worker.
+
+Internamente en el Cluster, ocurre un fenómeno conocido como **Shuffle**, el cuál consiste en un intercambio de datos entre diferentes Workers mediante **Stages**:
+
+  * **Stage 1 (local):** Cada worker procesa su partición y aplica una reducción parcial sobre sus propias claves. Esto es una optimización que Spark hace automáticamente: en lugar de mandar todos los datos crudos, manda resultados parciales.
+
+  * **Shuffle — redistribución por clave:** Los datos se escriben a disco (shuffle write), se transfieren por red, y los workers de destino los leen (shuffle read). Todas las ocurrencias de una misma clave deben llegar al mismo worker.
+
+  * **Stage 2 — reduce final:** Cada worker recibe todos los valores para sus claves asignadas y aplica la reducción final.
+
+  **La barrera de sincronización está entre Stages:** ningún worker puede empezar el Stage 2 hasta que todos los workers terminaron el Stage 1, porque necesitan los datos del shuffle completo.
+
+**Es inevitable** dado que:
+
+Para reducir por clave, necesitás que **todos los valores** de esa clave estén en el mismo lugar. Dado que los datos están **distribuidos arbitrariamente entre particiones**, no hay forma de garantizar eso sin mover datos entre workers.
