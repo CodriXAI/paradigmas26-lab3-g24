@@ -103,6 +103,31 @@ object Main {
     )
 
     println(Formatters.formatProcessingStats(stats))
+
+    // ==========================================
+    // EJERCICIO 3 - INCISO A
+    // ==========================================
+    val dictionary = Dictionary.loadAll(cmdArgs.entitiesDir)
+    if (dictionary.isEmpty){
+      println("Error: entities dictionary empty")
+      spark.stop()
+      return
+    }
+
+    val dictionaryBCast = sc.broadcast(dictionary)  
+
+    val entities = filteredPostsRDD.flatMap{ post =>
+      val text = post.title + " " + post.selftext
+
+      Analyzer.detectEntities(text, dictionaryBCast.value)
+    }
+
+    // ==========================================
+    // EJERCICIO 3 - INCISO B
+    // ==========================================
+    val mappedEntities = entities.map{ e =>
+      ((e.entityType, e.text), 1)
+    }
     
     spark.stop()
   }
