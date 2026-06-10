@@ -300,3 +300,7 @@ Broadcast variables y accumulators son la superficie controlada que Spark expone
 Si dejáramos propagar dicha excepción, rompería el concepto de resiliencia que posee
 nuestro programa, pues al "explotar" por al menos un feed mal descargado, interrumpiría
 la ejecución completa, incluso si hay workers que han podido descargar sus feeds correctamente.
+
+## Ejercicio 3 — Paralelizar el cómputo de entidades nombradas
+
+
