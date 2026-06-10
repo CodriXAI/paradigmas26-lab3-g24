@@ -46,11 +46,18 @@ object FileIO {
    * @param url Reddit feed URL
    * @return Option containing JSON as String, None on network error or timeout
    */
-  def downloadFeed(url: String): Option[String] = {
-    val source = Source.fromURL(url)
-    val content = source.mkString
-    source.close()
-    Some(content)
+  def downloadFeed(subscription: Subscription): Option[String] = {
+    try {
+      val source = Source.fromURL(subscription.url)
+      val content = source.mkString
+      source.close()
+      Some(content)
+    } catch {
+      // Any exception during download (e.g., network error, timeout) results in None
+      case _: Exception => 
+        println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
+        None
+    }
   }
 
   /**
