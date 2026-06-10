@@ -37,16 +37,23 @@ object Main {
 
     // Download feeds and parse posts, tracking success/failure
     val allPostsRDD = subscriptionsRDD.flatMap { subscription =>
-      val feedOpt = FileIO.downloadFeed(subscription.url)
-      feedOpt match {
-        case None =>
-          // In case of a download error, a warning is logged and an empty list of posts 
-          // for that subscription is returned.
-          println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
-          List.empty[Post]
-        case Some(content) =>
-          // parsePost handles parse error 7 case.
-          JsonParser.parsePosts(content, subscription.name)
+      try{
+        FileIO.downloadFeed(subscription.url) match {
+          case None =>
+            // In case of a download error, a warning is logged and an empty list of posts 
+            // for that subscription is returned.
+            println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
+            List.[Post]()
+          case Some(content) =>
+            // parsePost handles parse error 7 case.
+            val parsedPosts = JsonParser.parsePosts(content, subscription.name)
+            parsedPosts
+        }
+      } catch {
+        case e: Exception =>
+          // Internal fault handling so that an error does not cancel all processing
+          println(s"Warning: Failed to parse posts from '${subscription.name}' (${subscription.url})")
+          List[Post]()
       }
     }
 
