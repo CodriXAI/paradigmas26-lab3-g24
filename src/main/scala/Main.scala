@@ -129,6 +129,24 @@ object Main {
       ((e.entityType, e.text), 1)
     }
     
+    // ==========================================
+    // EJERCICIO 3 - INCISO C
+    // ==========================================
+    val reducedEntities = mappedEntities.reduceByKey(_ + _)
+
+    // ==========================================
+    // EJERCICIO 3 - INCISO D
+    // ==========================================
+    val entityCounts = reducedEntities.collect().toMap 
+
+    val entitiesStats = entities.collect().toList
+
+    val typeStats = Analyzer.countByType(entitiesStats)
+
+    println(Formatters.formatTypeStats(typeStats))
+    println()
+    println(Formatters.formatEntityStats(entityCounts, cmdArgs.topK))
+
     spark.stop()
   }
 }
