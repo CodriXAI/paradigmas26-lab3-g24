@@ -71,6 +71,13 @@ object Main {
     val totalFilteredPosts = filteredPostsRDD.count().toInt
     val emptyPosts = totalPosts - totalFilteredPosts
 
+    // Check if there are no posts after the filter
+    if(totalFilteredPosts == 0){
+      println("Error: No valid posts downloaded after filtering")
+      spark.stop()
+      return
+    }
+
     val totalChars = filteredPostsRDD.map{ post =>
       post.title.length + post.selftext.length
     }.reduce((a, b) => a + b)
