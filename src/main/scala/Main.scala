@@ -9,6 +9,9 @@ object Main {
       case None => return
     }
 
+    // ==========================================
+    // EJERCICIO 2 - INCISO A
+    // ==========================================
     // Configuration and start of the Spark Session
     val spark = SparkSession.builder()
       .appName("RedditNER")
@@ -35,6 +38,9 @@ object Main {
     // Parallelize subscriptions into RDD
     val subscriptionsRDD = sc.parallelize(subscriptions)
 
+    // ==========================================
+    // EJERCICIO 2 - INCISO B
+    // ==========================================
     // Download feeds and parse posts, tracking success/failure
     val allPostsRDD = subscriptionsRDD.flatMap { subscription =>
       try{
@@ -70,6 +76,16 @@ object Main {
     val totalPosts = allPostsRDD.count().toInt
     val totalFilteredPosts = filteredPostsRDD.count().toInt
     val emptyPosts = totalPosts - totalFilteredPosts
+
+    // ==========================================
+    // EJERCICIO 2 - INCISO D
+    // ==========================================
+    // Check if there are no posts after the filter
+    if(totalFilteredPosts == 0){
+      println("Error: No valid posts downloaded after filtering")
+      spark.stop()
+      return
+    }
 
     val totalChars = filteredPostsRDD.map{ post =>
       post.title.length + post.selftext.length
