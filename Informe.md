@@ -303,8 +303,7 @@ la ejecución completa, incluso si hay workers que han podido descargar sus feed
 
 ## Ejercicio 3 — Paralelizar el cómputo de entidades nombradas
 
-* reduceByKey es una barrera de sincronización. ¿Qué ocurre en el cluster en ese
-punto? ¿Por qué es inevitable para este problema?
+* **reduceByKey es una barrera de sincronización. ¿Qué ocurre en el cluster en ese punto? ¿Por qué es inevitable para este problema?**
 
 **reduceByKey** es una barrera de sincronización, pues necesita: por un lado debe agrupar los mismos valores asociados a una misma clave, para luego realizar la reducción mediante dicha agrupación en cada Worker.
 
@@ -321,3 +320,15 @@ Internamente en el Cluster, ocurre un fenómeno conocido como **Shuffle**, el cu
 **Es inevitable** dado que:
 
 Para reducir por clave, necesitás que **todos los valores** de esa clave estén en el mismo lugar. Dado que los datos están **distribuidos arbitrariamente entre particiones**, no hay forma de garantizar eso sin mover datos entre workers.
+
+* **¿Qué restricciones debe cumplir la función que se le pasa a reduceByKey? Piensen en conmutatividad y asociatividad.**
+
+La función debe ser **asociativa** y **conmutativa**. 
+**Asociativa** porque Spark divide los datos entre workers y cada uno produce un resultado parcial. Luego Spark combina esos parciales sin garantizar en qué orden. Si la función no fuera asociativa, `(a op b) op c` podría dar distinto que `a op (b op c)` y el resultado final dependería de cómo Spark agrupó los parciales — lo cual es no determinístico.
+
+**Conmutativa** porque dentro de cada worker los elementos de una partición pueden llegar en cualquier orden. Si la función no fuera conmutativa, `a op b` podría dar distinto que `b op a`.
+La suma cumple ambas: `(2 + 3) + 4 == 2 + (3 + 4)` y `2 + 3 == 3 + 2` al igual que la multiplicación. La resta no cumple ninguna: `(5 - 3) - 1 != 5 - (3 - 1)` y `5 - 3 != 3 - 5`.
+
+* **¿Dónde se hace la lectura del diccionario de entidades? ¿En el driver o los workers?**
+
+La lectura la realiza el **driver**, una sola vez antes de que comience el pipeline distribuido. Una vez cargado, se envía a los workers como una **broadcast variable**, lo que significa que Spark lo serializa y manda **una copia por worker** en lugar de una copia por tarea. Esto reduce significativamente el tráfico de red — sin broadcast, Spark enviaría el dictionary completo con cada tarea individual que lo necesite. Adicionalmente, para que Spark pueda serializar el dictionary, la clase `NamedEntity` debe implementar el trait `Serializable` — sin esto el pipeline falla al intentar distribuir el objeto a los workers.
