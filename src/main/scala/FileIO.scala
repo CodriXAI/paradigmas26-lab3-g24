@@ -53,6 +53,7 @@ object FileIO {
       source.close()
       Some(content)
     } catch {
+      // Any exception during download (e.g., network error, timeout) results in None
       case _: Exception => None
     }
   }

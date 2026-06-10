@@ -40,9 +40,12 @@ object Main {
       val feedOpt = FileIO.downloadFeed(subscription.url)
       feedOpt match {
         case None =>
+          // In case of a download error, a warning is logged and an empty list of posts 
+          // for that subscription is returned.
           println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
           List.empty[Post]
         case Some(content) =>
+          // parsePost handles parse error 7 case.
           JsonParser.parsePosts(content, subscription.name)
       }
     }
