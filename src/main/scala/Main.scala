@@ -43,7 +43,7 @@ object Main {
             // In case of a download error, a warning is logged and an empty list of posts 
             // for that subscription is returned.
             println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
-            List.[Post]()
+            List[Post]()
           case Some(content) =>
             // parsePost handles parse error 7 case.
             val parsedPosts = JsonParser.parsePosts(content, subscription.name)
