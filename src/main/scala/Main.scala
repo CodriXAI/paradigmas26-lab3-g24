@@ -60,6 +60,33 @@ object Main {
     val filteredPostsRDD = allPostsRDD.filter(post =>
       post.title.nonEmpty && post.selftext.nonEmpty
     )
+
+    // ==========================================
+    // EJERCICIO 2 - INCISO C
+    // ==========================================
+    // Prints how many posts were downloaded, how many were filtered,
+    // and the average length in characters of the filtered posts. The
+    // other stats will be completed in exercise 4.
+    val totalPosts = allPostsRDD.count().toInt
+    val totalFilteredPosts = filteredPostsRDD.count().toInt
+    val emptyPosts = totalPosts - totalFilteredPosts
+
+    val totalChars = filteredPostsRDD.map{ post =>
+      post.title.length + post.selftext.length
+    }.reduce((a, b) => a + b)
+
+    val avgChars = (totalChars / totalFilteredPosts).toInt
+
+    val stats = Map(
+      "feedsSuccess"  -> 0, // will be replaced in exercise 4 with accumulators
+      "feedsFailed"   -> 0, // will be replaced in exercise 4 with accumulators
+      "postsSuccess"  -> totalPosts,
+      "postsFailed"   -> 0, // will be replaced in exercise 4 with accumulators
+      "postsFiltered" -> emptyPosts,
+      "avgChars"      -> avgChars
+    )
+
+    println(Formatters.formatProcessingStats(stats))
     
     spark.stop()
   }
