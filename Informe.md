@@ -429,9 +429,9 @@ acumuladores porque ninguna tarea se ha ejecutado aún.
 
 | Etapa | Versión secuencial | Versión Spark |
 |-------|-------------------|---------------|
-| Descarga + parseo + filtrado | _[X.X s]_ | _[X.X s]_ |
-| NER + conteo + ranking | _[X.X s]_ | _[X.X s]_ |
-| **Total** | _[X.X s]_ | _[X.X s]_ |
+| Descarga + filtrado | _[20.328 s]_ | _[7.456 s]_ |
+| NER + conteo | _[0.238 s]_ | _[6.284 s]_ |
+| **Total** | _[20.566 s]_ | _[13.740 s]_ |
 
 #### Conclusiones
 
