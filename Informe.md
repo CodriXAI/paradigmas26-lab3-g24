@@ -345,3 +345,33 @@ a) En Main.scala no se utiliza .cache() ni .persist() sobre los RDD intermedios.
 Esto ocurre, por ejemplo, cuando se ejecutan allPostsRDD.count(), filteredPostsRDD.count() y el calculo de totalChars. En cada caso Spark vuelve a descargar los feeds, parsear los JSON y aplicar los filtros
 
 Algo similar sucede al obtener los resultados del NER mediante collect(). Como los RDD no estan almacenados en memoria, Spark vuelve a recorrer todo el pipeline y ejecuta nuevamente Analyzer.detectEntities() para cada post válido. Dado que esta es una de las operaciones mas costosas del programa, se produce un gasto innecesario de tiempo y recursos
+
+---
+
+- ¿Que ocurriria si no llamaran a cache()? ¿Cuantas veces se ejecutaria la descarga de feeds?
+
+Si no usaramos cache(), por la forma en que funciona Spark (lazy evaluation), cada vez que se ejecuta una accion como count(), reduce() o collect(), Spark tiene que volver a recorrer todas las transformaciones desde el principio. En este caso, eso incluye volver a descargar los feeds.
+
+Mirando el codigo, hay 5 acciones que dependen de esos datos:
+
+1. allPostsRDD.count()
+2. filteredPostsRDD.count()
+3. El reduce(...) para calcular la cantidad total de caracteres.
+4. reducedEntities.collect()
+5. entities.collect()
+
+Entonces, si no estuviera cache(), la descarga completa de feeds se haria 5 veces, una por cada accion. Como descargar los feeds es una operacion bastante costosa, el tiempo de ejecucion aumentaria mucho.
+
+- ¿Por que es incorrecto llamar a collect() entre los pasos a) y b) del ejercicio 3 y luego continuar el pipeline? ¿Que consecuencia tiene sobre la distribucion del trabajo?
+
+Llamar a collect() hace que todos los datos que estan repartidos entre los workers se envien al driver. Si hacemos eso despues del paso a), donde ya tenemos todas las entidades extraidas, estariamos moviendo una gran cantidad de datos por la red hacia una sola maquina.
+
+Esto puede generar problemas de memoria en el driver e incluso provocar un error por falta de memoria. Ademas, a partir de ese momento el procesamiento dejaria de hacerse de forma distribuida y pasaria a ejecutarse en una sola maquina, perdiendo una de las principales ventajas de Spark.
+
+Si despues quisieramos volver a distribuir esos datos, tendriamos que usar parallelize, lo que implicaria enviarlos nuevamente a los workers y agregaria un costo extra totalmente innecesario.
+
+- cache() es tambien lazy. ¿En que momento se almacena realmente el RDD en memoria?
+
+cache() tambien es una operacion lazy, asi que cuando la escribimos no guarda nada inmediatamente en memoria. Lo unico que hace es marcar el RDD para que sea almacenado cuando se necesite.
+
+El RDD se guarda realmente la primera vez que una accion obliga a calcularlo. Mientras Spark va recorriendo las particiones para ejecutar esa accion, aprovecha y las va almacenando en memoria. A partir de ese momento, las siguientes acciones pueden reutilizar esos datos sin tener que recalcular todo desde cero.
