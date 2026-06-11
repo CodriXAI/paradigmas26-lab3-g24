@@ -39,6 +39,18 @@ object Main {
     val subscriptionsRDD = sc.parallelize(subscriptions)
 
     // ==========================================
+    // EJERCICIO 4 - INCISO A
+    // ==========================================
+    // Accumulators for tracking feed and post processing statistics and metrics globally across the cluster.
+    // only the driver can read them; the workers can only increment them.
+    // - Metrics related to feed downloading success/failure
+    val accFeedsSuccess  = sc.longAccumulator("feedsSuccess")
+    val accFeedsFailed   = sc.longAccumulator("feedsFailed")
+    // - Metrics related to post processing (total posts, filtered posts)
+    val accPostsTotal    = sc.longAccumulator("postsTotal")
+    val accPostsFiltered = sc.longAccumulator("postsFiltered")
+
+    // ==========================================
     // EJERCICIO 2 - INCISO B
     // ==========================================
     // Download feeds and parse posts, tracking success/failure
