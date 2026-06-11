@@ -103,6 +103,7 @@ Ordenamiento: descendente por conteo, alfabético por tipo
  6 → 7             Conteo (reduce)     `List[((String, String), Int)]`         `Map[(String, String), Int]`
  7 → 8             Ranking             `Map[(String, String), Int]`            `String` (salida)
 ```
+
 ---
 
 ### b) Identificación de abstracciones de Spark
@@ -114,33 +115,38 @@ en el resultado final del programa:
 
 **1 -> 2 -> 3 -> 4 .... -> Fin**
 
-Donde: 
+Donde:
 
 **Output(1) -> Input(2) -> .... -> Output(Fin)**
 
 Dentro de un Pipeline podremos tener dos tipos de **sucesos**:
 
 ### Acciones
+
 Las acciones son procesos que toman una **RDD (Resilient Distributed Database)** y devuelven un resultado inmediato que escapa por fuera del flujo de un pipeline
 
 **Ejemplos:**
-* count
-* collect
-* foreach
-* print
+
+- count
+- collect
+- foreach
+- print
 
 ### Transformaciones
+
 Son las diferentes etapas por las cuales se va pasando en el flujo del Pipeline, estos no tienen resultados inmediatos y solo son pasos iniciales, intermedios y finales para llegar de un **"Input General"** hasta el **"Output General"**.
 Toman un RDD y devuelven otro RDD. **Son Lazy**, no se ejecutan hasta que alguien las necesita.
 
 **Ejemplos:**
-* map 
-* flatMap
-* reduceByKey
 
+- map
+- flatMap
+- reduceByKey
 
 ## NUESTRO PIPELINE
+
 NUESTRO PIPELINE (Análisis del Esqueleto)
+
 ```
   1. Lectura de suscripciones
   2. Descarga de feeds
@@ -154,37 +160,36 @@ NUESTRO PIPELINE (Análisis del Esqueleto)
 
 **OBSERVACIÓN**: A diferencia del esqueleto, En el Pipeline pueden fusionarse en un único flatMap la Descarga de feeds y el aplanamiento de los datos, tanto en Scala secuencial como en Spark. En el skeleton están separados por claridad expositiva. En nuestra implementación con Spark los fusionamos para evitar RDDs intermedios innecesarios (ya que conllevan overhead, pero nos abstraeremos de ello)
 
-
 ### Lo que SI se puede representar como una Abstracción de Spark
 
-* 2 -> **flatMap**: Por cada subscripción puede devolver **VARIOS o NINGÚN feed**
+- 2 -> **flatMap**: Por cada subscripción puede devolver **VARIOS o NINGÚN feed**
 
-* 3 -> **flatMap**: Por cada feed puede devuelver **VARIOS o NINGÚN post**. 
+- 3 -> **flatMap**: Por cada feed puede devuelver **VARIOS o NINGÚN post**.
 
-* 4 -> **"filter"**: Si bien no está explícito en la consigna, vale la pena mencionarlo ya que sacamos posts vacíos, si lo queremos ver a modo de **flatMap**, donde puede devolver 1 o 0 elementos (no usamos **map** pues debería consistir en que devuelva EXACTAMENTE un solo elemento).
+- 4 -> **"filter"**: Si bien no está explícito en la consigna, vale la pena mencionarlo ya que sacamos posts vacíos, si lo queremos ver a modo de **flatMap**, donde puede devolver 1 o 0 elementos (no usamos **map** pues debería consistir en que devuelva EXACTAMENTE un solo elemento).
 
-* 5 -> **flatMap**: Por cada Post pueden surgir **VARIAS o NINGUNA entidad**.
+- 5 -> **flatMap**: Por cada Post pueden surgir **VARIAS o NINGUNA entidad**.
 
-* 6 -> **map**: Por cada entidad lo mapeamos a una **ÚNICA TUPLA (Clave,Valor)**.
+- 6 -> **map**: Por cada entidad lo mapeamos a una **ÚNICA TUPLA (Clave,Valor)**.
 
-* 7 -> **reduceByKey u otras reducciones**: Por cada entidad se organiza en base a una **Clave** y se colapsan los **Valores**.
+- 7 -> **reduceByKey u otras reducciones**: Por cada entidad se organiza en base a una **Clave** y se colapsan los **Valores**.
 
 ### Lo que NO se puede representar como una Abstracción de Spark
 
-* 1 -> **Es el Driver**: Leer subscripciones es "preparar el terreno" para poder trabajar con paralelismo con Spark. Descartamos las 3 opciones pues:
-  * **map y flatMap**: Necesitamos como input un **RDD**, y como input tenemos un **String**.
-  * **Reducciones**: necesita pares clave-valor distribuidos para combinar.
+- 1 -> **Es el Driver**: Leer subscripciones es "preparar el terreno" para poder trabajar con paralelismo con Spark. Descartamos las 3 opciones pues:
+  - **map y flatMap**: Necesitamos como input un **RDD**, y como input tenemos un **String**.
+  - **Reducciones**: necesita pares clave-valor distribuidos para combinar.
 
   Y una pista clave la encontramos en el Ejercicio 2 cuando nos dicen:
 
-  *"Lean las suscripciones de subscriptions.json y cárguenlas en un RDD con
-  sc.parallelize(subscriptions)"*.
+  _"Lean las suscripciones de subscriptions.json y cárguenlas en un RDD con
+  sc.parallelize(subscriptions)"_.
 
-* 8 -> **Es el Driver (Ranking e Impresiones en pantalla)**: Es la etapa final del programa. El ordenamiento descendente del ranking y el formateo de texto son procesos secuenciales que se ejecutan de manera central en el Driver. No pueden ser transformaciones de Spark porque no generan un nuevo RDD, sino que consumen el resultado final distribuido mediante **acciones (como collect)** para generar un **efecto secundario (la salida en consola)**.
-  
+- 8 -> **Es el Driver (Ranking e Impresiones en pantalla)**: Es la etapa final del programa. El ordenamiento descendente del ranking y el formateo de texto son procesos secuenciales que se ejecutan de manera central en el Driver. No pueden ser transformaciones de Spark porque no generan un nuevo RDD, sino que consumen el resultado final distribuido mediante **acciones (como collect)** para generar un **efecto secundario (la salida en consola)**.
+
 ### c) Barreras de sincronización y paralelismo
 
-#### Partes completamentes independientes son: 
+#### Partes completamentes independientes son:
 
 - FileIO.downloadFeed(...)
 - JsonParser.parsePosts(...)
@@ -194,7 +199,7 @@ NUESTRO PIPELINE (Análisis del Esqueleto)
 #### Partes que son barreras de sincronización (requiere que todos los workers terminen):
 
 - downloadResults.count(...)
-- if (filteredPosts.isEmpty) - verificación de post vacios 
+- if (filteredPosts.isEmpty) - verificación de post vacios
 - Analizer.countEntities
 - Analizer.countByType
 - .sortBy{...}
@@ -286,11 +291,11 @@ Por todo esto, Spark impone implícitamente — sin verificación estática — 
 
 Las tres restricciones no son arbitrarias: son consecuencias directas del modelo de ejecución distribuido.
 
-| Restricción | Causa raíz |
-|---|---|
-| **Serialización** | El código tiene que viajar por red desde el driver hasta cada worker |
+| Restricción                   | Causa raíz                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| **Serialización**             | El código tiene que viajar por red desde el driver hasta cada worker                   |
 | **Estado mutable compartido** | Spark puede re-ejecutar tareas y múltiples workers operan en paralelo sin coordinación |
-| **Efectos secundarios** | La evaluación lazy y el no-determinismo en el orden de ejecución |
+| **Efectos secundarios**       | La evaluación lazy y el no-determinismo en el orden de ejecución                       |
 
 Broadcast variables y accumulators son la superficie controlada que Spark expone para los únicos dos patrones de estado compartido que puede garantizar correctamente: **lectura eficiente de datos grandes** y **acumulación de resultados parciales**.
 
@@ -303,32 +308,40 @@ la ejecución completa, incluso si hay workers que han podido descargar sus feed
 
 ## Ejercicio 3 — Paralelizar el cómputo de entidades nombradas
 
-* **reduceByKey es una barrera de sincronización. ¿Qué ocurre en el cluster en ese punto? ¿Por qué es inevitable para este problema?**
+- **reduceByKey es una barrera de sincronización. ¿Qué ocurre en el cluster en ese punto? ¿Por qué es inevitable para este problema?**
 
 **reduceByKey** es una barrera de sincronización, pues necesita: por un lado debe agrupar los mismos valores asociados a una misma clave, para luego realizar la reducción mediante dicha agrupación en cada Worker.
 
 Internamente en el Cluster, ocurre un fenómeno conocido como **Shuffle**, el cuál consiste en un intercambio de datos entre diferentes Workers mediante **Stages**:
 
-  * **Stage 1 (local):** Cada worker procesa su partición y aplica una reducción parcial sobre sus propias claves. Esto es una optimización que Spark hace automáticamente: en lugar de mandar todos los datos crudos, manda resultados parciales.
+- **Stage 1 (local):** Cada worker procesa su partición y aplica una reducción parcial sobre sus propias claves. Esto es una optimización que Spark hace automáticamente: en lugar de mandar todos los datos crudos, manda resultados parciales.
 
-  * **Shuffle — redistribución por clave:** Los datos se escriben a disco (shuffle write), se transfieren por red, y los workers de destino los leen (shuffle read). Todas las ocurrencias de una misma clave deben llegar al mismo worker.
+- **Shuffle — redistribución por clave:** Los datos se escriben a disco (shuffle write), se transfieren por red, y los workers de destino los leen (shuffle read). Todas las ocurrencias de una misma clave deben llegar al mismo worker.
 
-  * **Stage 2 — reduce final:** Cada worker recibe todos los valores para sus claves asignadas y aplica la reducción final.
+- **Stage 2 — reduce final:** Cada worker recibe todos los valores para sus claves asignadas y aplica la reducción final.
 
-  **La barrera de sincronización está entre Stages:** ningún worker puede empezar el Stage 2 hasta que todos los workers terminaron el Stage 1, porque necesitan los datos del shuffle completo.
+**La barrera de sincronización está entre Stages:** ningún worker puede empezar el Stage 2 hasta que todos los workers terminaron el Stage 1, porque necesitan los datos del shuffle completo.
 
 **Es inevitable** dado que:
 
 Para reducir por clave, necesitás que **todos los valores** de esa clave estén en el mismo lugar. Dado que los datos están **distribuidos arbitrariamente entre particiones**, no hay forma de garantizar eso sin mover datos entre workers.
 
-* **¿Qué restricciones debe cumplir la función que se le pasa a reduceByKey? Piensen en conmutatividad y asociatividad.**
+- **¿Qué restricciones debe cumplir la función que se le pasa a reduceByKey? Piensen en conmutatividad y asociatividad.**
 
-La función debe ser **asociativa** y **conmutativa**. 
+La función debe ser **asociativa** y **conmutativa**.
 **Asociativa** porque Spark divide los datos entre workers y cada uno produce un resultado parcial. Luego Spark combina esos parciales sin garantizar en qué orden. Si la función no fuera asociativa, `(a op b) op c` podría dar distinto que `a op (b op c)` y el resultado final dependería de cómo Spark agrupó los parciales — lo cual es no determinístico.
 
 **Conmutativa** porque dentro de cada worker los elementos de una partición pueden llegar en cualquier orden. Si la función no fuera conmutativa, `a op b` podría dar distinto que `b op a`.
 La suma cumple ambas: `(2 + 3) + 4 == 2 + (3 + 4)` y `2 + 3 == 3 + 2` al igual que la multiplicación. La resta no cumple ninguna: `(5 - 3) - 1 != 5 - (3 - 1)` y `5 - 3 != 3 - 5`.
 
-* **¿Dónde se hace la lectura del diccionario de entidades? ¿En el driver o los workers?**
+- **¿Dónde se hace la lectura del diccionario de entidades? ¿En el driver o los workers?**
 
 La lectura la realiza el **driver**, una sola vez antes de que comience el pipeline distribuido. Una vez cargado, se envía a los workers como una **broadcast variable**, lo que significa que Spark lo serializa y manda **una copia por worker** en lugar de una copia por tarea. Esto reduce significativamente el tráfico de red — sin broadcast, Spark enviaría el dictionary completo con cada tarea individual que lo necesite. Adicionalmente, para que Spark pueda serializar el dictionary, la clase `NamedEntity` debe implementar el trait `Serializable` — sin esto el pipeline falla al intentar distribuir el objeto a los workers.
+
+## Ejercicio 5 — Acceso a datos y estadísticas del resultado
+
+a) En Main.scala no se utiliza .cache() ni .persist() sobre los RDD intermedios. Por eso, cada vez que se ejecuta una accion, spark vuelve a calcular todas las transformaciones desde el principio
+
+Esto ocurre, por ejemplo, cuando se ejecutan allPostsRDD.count(), filteredPostsRDD.count() y el calculo de totalChars. En cada caso Spark vuelve a descargar los feeds, parsear los JSON y aplicar los filtros
+
+Algo similar sucede al obtener los resultados del NER mediante collect(). Como los RDD no estan almacenados en memoria, Spark vuelve a recorrer todo el pipeline y ejecuta nuevamente Analyzer.detectEntities() para cada post válido. Dado que esta es una de las operaciones mas costosas del programa, se produce un gasto innecesario de tiempo y recursos
