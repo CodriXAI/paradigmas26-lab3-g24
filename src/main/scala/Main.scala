@@ -77,12 +77,15 @@ object Main {
     val totalFilteredPosts = filteredPostsRDD.count().toInt
     val emptyPosts = totalPosts - totalFilteredPosts
 
+    allPostsRDD.unpersist()
+
     // ==========================================
     // EJERCICIO 2 - INCISO D
     // ==========================================
     // Check if there are no posts after the filter
     if(totalFilteredPosts == 0){
       println("Error: No valid posts downloaded after filtering")
+      filteredPostsRDD.unpersist()
       spark.stop()
       return
     }
@@ -110,6 +113,7 @@ object Main {
     val dictionary = Dictionary.loadAll(cmdArgs.entitiesDir)
     if (dictionary.isEmpty){
       println("Error: entities dictionary empty")
+      filteredPostsRDD.unpersist()
       spark.stop()
       return
     }
@@ -139,6 +143,8 @@ object Main {
     // ==========================================
     val entityCounts = reducedEntities.collect().toMap 
 
+    filteredPostsRDD.unpersist()
+
     val entitiesStats = entities.collect().toList
 
     val typeStats = Analyzer.countByType(entitiesStats)
@@ -146,6 +152,8 @@ object Main {
     println(Formatters.formatTypeStats(typeStats))
     println()
     println(Formatters.formatEntityStats(entityCounts, cmdArgs.topK))
+
+    entities.unpersist()
 
     spark.stop()
   }
