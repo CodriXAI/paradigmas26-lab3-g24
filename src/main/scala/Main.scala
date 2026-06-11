@@ -61,11 +61,11 @@ object Main {
           println(s"Warning: Failed to parse posts from '${subscription.name}' (${subscription.url})")
           List[Post]()
       }
-    }
+    }.cache()
 
     val filteredPostsRDD = allPostsRDD.filter(post =>
       post.title.nonEmpty && post.selftext.nonEmpty
-    )
+    ).cache()
 
     // ==========================================
     // EJERCICIO 2 - INCISO C
@@ -120,7 +120,7 @@ object Main {
       val text = post.title + " " + post.selftext
 
       Analyzer.detectEntities(text, dictionaryBCast.value)
-    }
+    }.cache()
 
     // ==========================================
     // EJERCICIO 3 - INCISO B
