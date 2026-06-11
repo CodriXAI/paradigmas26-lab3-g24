@@ -101,8 +101,12 @@ object Main {
     // Using aggregate to compute total filtered posts and total characters in one pass,
     // which allows us to read the accumulators only once after the action is triggered.
     val (totalFilteredPosts, totalCharsAgg) = filteredPostsRDD.aggregate((0L, 0L))(
-      seqOp  = (acc, post) => (acc._1 + 1L, acc._2 + post.title.length + post.selftext.length),
-      combOp = (a, b)      => (a._1 + b._1,  a._2 + b._2)
+      seqOp  = { case ((cantPosts, cantChars), post) =>
+        (cantPosts + 1L, cantChars + post.title.length + post.selftext.length)
+      },
+      combOp = { case ((cantPosts1, cantChars1), (cantPosts2, cantChars2)) =>
+        (cantPosts1 + cantPosts2, cantChars1 + cantChars2)
+      }
     )
 
     // Timing the end of the download and filtering phase and printing the elapsed time
@@ -119,11 +123,7 @@ object Main {
       return
     }
 
-    val totalChars = filteredPostsRDD.map{ post =>
-      post.title.length + post.selftext.length
-    }.reduce((a, b) => a + b)
-
-    val avgChars = (totalChars / totalFilteredPosts).toInt
+    val avgChars = (totalCharsAgg / totalFilteredPosts).toInt
 
     // ==========================================
     // EJERCICIO 4 - INCISO B
@@ -200,10 +200,7 @@ object Main {
     println(Formatters.formatTypeStats(typeStats))
     println()
     println(Formatters.formatEntityStats(entityCounts, cmdArgs.topK))
-
-    println("=== PROGRAMA PAUSADO: Abrí http://localhost:4040 en tu navegador para ver la Spark UI ===")
-    scala.io.StdIn.readLine("Presioná Enter para finalizar y cerrar Spark...")
-
+    
     spark.stop()
   }
 }

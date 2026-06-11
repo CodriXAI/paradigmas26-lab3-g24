@@ -420,7 +420,7 @@ acumuladores porque ninguna tarea se ha ejecutado aún.
 
 | Parámetro | Valor |
 |-----------|-------|
-| Máquina   | _[completar: CPU, RAM]_ |
+| Máquina   | CPU: Intel Core I7, RAM: 8GB |
 | JVM       | Java 17 |
 | Spark     | 3.x, modo `local[*]` |
 | Feeds     | 3 suscripciones (mock local en `localhost:8123`) |
