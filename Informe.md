@@ -340,7 +340,7 @@ La lectura la realiza el **driver**, una sola vez antes de que comience el pipel
 
 ## Ejercicio 5 — Acceso a datos y estadísticas del resultado
 
-a) En Main.scala no se utiliza .cache() ni .persist() sobre los RDD intermedios. Por eso, cada vez que se ejecuta una accion, spark vuelve a calcular todas las transformaciones desde el principio
+a) En Main.scala no se utiliza .cache() ni .unpersist() sobre los RDD intermedios. Por eso, cada vez que se ejecuta una accion, spark vuelve a calcular todas las transformaciones desde el principio
 
 Esto ocurre, por ejemplo, cuando se ejecutan allPostsRDD.count(), filteredPostsRDD.count() y el calculo de totalChars. En cada caso Spark vuelve a descargar los feeds, parsear los JSON y aplicar los filtros
 
@@ -348,7 +348,7 @@ Algo similar sucede al obtener los resultados del NER mediante collect(). Como l
 
 ---
 
-- ¿Que ocurriria si no llamaran a cache()? ¿Cuantas veces se ejecutaria la descarga de feeds?
+- **¿Que ocurriria si no llamaran a cache()? ¿Cuantas veces se ejecutaria la descarga de feeds?**
 
 Si no usaramos cache(), por la forma en que funciona Spark (lazy evaluation), cada vez que se ejecuta una accion como count(), reduce() o collect(), Spark tiene que volver a recorrer todas las transformaciones desde el principio. En este caso, eso incluye volver a descargar los feeds.
 
@@ -356,13 +356,12 @@ Mirando el codigo, hay 5 acciones que dependen de esos datos:
 
 1. allPostsRDD.count()
 2. filteredPostsRDD.count()
-3. El reduce(...) para calcular la cantidad total de caracteres.
-4. reducedEntities.collect()
-5. entities.collect()
+3. reducedEntities.collect()
+4. entities.collect()
 
 Entonces, si no estuviera cache(), la descarga completa de feeds se haria 5 veces, una por cada accion. Como descargar los feeds es una operacion bastante costosa, el tiempo de ejecucion aumentaria mucho.
 
-- ¿Por que es incorrecto llamar a collect() entre los pasos a) y b) del ejercicio 3 y luego continuar el pipeline? ¿Que consecuencia tiene sobre la distribucion del trabajo?
+- **¿Por que es incorrecto llamar a collect() entre los pasos a) y b) del ejercicio 3 y luego continuar el pipeline? ¿Que consecuencia tiene sobre la distribucion del trabajo?**
 
 Llamar a collect() hace que todos los datos que estan repartidos entre los workers se envien al driver. Si hacemos eso despues del paso a), donde ya tenemos todas las entidades extraidas, estariamos moviendo una gran cantidad de datos por la red hacia una sola maquina.
 
@@ -370,7 +369,7 @@ Esto puede generar problemas de memoria en el driver e incluso provocar un error
 
 Si despues quisieramos volver a distribuir esos datos, tendriamos que usar parallelize, lo que implicaria enviarlos nuevamente a los workers y agregaria un costo extra totalmente innecesario.
 
-- cache() es tambien lazy. ¿En que momento se almacena realmente el RDD en memoria?
+- **cache() es tambien lazy. ¿En que momento se almacena realmente el RDD en memoria?**
 
 cache() tambien es una operacion lazy, asi que cuando la escribimos no guarda nada inmediatamente en memoria. Lo unico que hace es marcar el RDD para que sea almacenado cuando se necesite.
 
