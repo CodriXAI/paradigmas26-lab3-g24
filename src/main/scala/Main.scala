@@ -41,8 +41,9 @@ object Main {
     // ==========================================
     // EJERCICIO 4 - INCISO A
     // ==========================================
-    // Accumulators for tracking feed and post processing statistics and metrics globally across the cluster.
-    // only the driver can read them; the workers can only increment them.
+    // Accumulators for tracking feed and post processing statistics and 
+    // metrics globally across the cluster
+    // only the driver can read them; the workers can only increment them
     // - Metrics related to feed downloading success/failure
     val accFeedsSuccess  = sc.longAccumulator("feedsSuccess")
     val accFeedsFailed   = sc.longAccumulator("feedsFailed")
@@ -61,33 +62,52 @@ object Main {
             // In case of a download error, a warning is logged and an empty list of posts 
             // for that subscription is returned.
             println(s"Warning: Failed to download from '${subscription.name}' (${subscription.url})")
+            accFeedsFailed.add(1)
             List[Post]()
           case Some(content) =>
+            accFeedsSuccess.add(1)
             // parsePost handles parse error 7 case.
             val parsedPosts = JsonParser.parsePosts(content, subscription.name)
+            accPostsTotal.add(parsedPosts.length)
             parsedPosts
         }
       } catch {
         case e: Exception =>
           // Internal fault handling so that an error does not cancel all processing
           println(s"Warning: Failed to parse posts from '${subscription.name}' (${subscription.url})")
+          accFeedsFailed.add(1)
           List[Post]()
       }
     }
 
-    val filteredPostsRDD = allPostsRDD.filter(post =>
-      post.title.nonEmpty && post.selftext.nonEmpty
-    )
+    // Changed from .filter() to .flatMap() to allow incrementing accPostsFiltered
+    // within the transformation (workers can only write Accumulators).
+    val filteredPostsRDD = allPostsRDD.flatMap { post =>
+      if (post.title.nonEmpty && post.selftext.nonEmpty) {
+        List(post)
+      } else {
+        accPostsFiltered.add(1)
+        List.empty[Post]
+      }
+    }
 
     // ==========================================
-    // EJERCICIO 2 - INCISO C
+    // EJERCICIO 2 - INCISO C (ANTES) 
+    // EJERCICIO 4 - INCISO C (AHORA)
     // ==========================================
-    // Prints how many posts were downloaded, how many were filtered,
-    // and the average length in characters of the filtered posts. The
-    // other stats will be completed in exercise 4.
-    val totalPosts = allPostsRDD.count().toInt
-    val totalFilteredPosts = filteredPostsRDD.count().toInt
-    val emptyPosts = totalPosts - totalFilteredPosts
+    // Timing the download and filtering phase using System.currentTimeMillis()
+    val t0Download = System.currentTimeMillis()
+
+    // Using aggregate to compute total filtered posts and total characters in one pass,
+    // which allows us to read the accumulators only once after the action is triggered.
+    val (totalFilteredPosts, totalCharsAgg) = filteredPostsRDD.aggregate((0L, 0L))(
+      seqOp  = (acc, post) => (acc._1 + 1L, acc._2 + post.title.length + post.selftext.length),
+      combOp = (a, b)      => (a._1 + b._1,  a._2 + b._2)
+    )
+
+    // Timing the end of the download and filtering phase and printing the elapsed time
+    val t1Download = System.currentTimeMillis()
+    println(s"[Time] Download and filtering: ${(t1Download - t0Download) / 1000.0} s")
 
     // ==========================================
     // EJERCICIO 2 - INCISO D
@@ -108,7 +128,8 @@ object Main {
     // ==========================================
     // EJERCICIO 4 - INCISO B
     // ==========================================
-    // Stats calculation for feed and post processing, using accumulators to track counts across the cluster
+    // Stats calculation for feed and post processing, using accumulators 
+    // to track counts across the cluster
     val stats = Map(
       "feedsSuccess"  -> accFeedsSuccess.value.toInt,
       "feedsFailed"   -> accFeedsFailed.value.toInt,
@@ -151,17 +172,36 @@ object Main {
     val reducedEntities = mappedEntities.reduceByKey(_ + _)
 
     // ==========================================
-    // EJERCICIO 3 - INCISO D
+    // EJERCICIO 3 - INCISO D (ANTES)
+    // EJERCICIO 4 - INCISO C (AHORA)
     // ==========================================
+    // Measurement (NER + count)
+    // Timing the NER phase using System.currentTimeMillis()
+    val t0Ner = System.currentTimeMillis()
+
     val entityCounts = reducedEntities.collect().toMap 
 
-    val entitiesStats = entities.collect().toList
+    // Timing the end of the NER phase and printing the elapsed time
+    val t1Ner = System.currentTimeMillis()
+    println(s"[Time] NER and entity counting: ${(t1Ner - t0Ner) / 1000.0} s")
 
-    val typeStats = Analyzer.countByType(entitiesStats)
+    // Deriving typeStats from entityCounts avoids calling entities.collect()
+    // which would be a second action on the same lineage and would re-evaluate
+    // filteredPostsRDD from scratch (a problem that cache() will solve in Exercise 5).
+    val total  = entityCounts.values.sum
+    val byType = entityCounts
+      .groupBy { case ((entityType, _), _) => entityType }
+      .view
+      .mapValues { group => group.values.sum }
+      .toMap
+    val typeStats = byType + ("total" -> total)
 
     println(Formatters.formatTypeStats(typeStats))
     println()
     println(Formatters.formatEntityStats(entityCounts, cmdArgs.topK))
+
+    println("=== PROGRAMA PAUSADO: Abrí http://localhost:4040 en tu navegador para ver la Spark UI ===")
+    scala.io.StdIn.readLine("Presioná Enter para finalizar y cerrar Spark...")
 
     spark.stop()
   }
