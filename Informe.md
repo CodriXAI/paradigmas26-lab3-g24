@@ -420,6 +420,8 @@ acumuladores porque ninguna tarea se ha ejecutado aún.
 > **Nota:** los valores de tiempo en la tabla son mediciones reales sobre la misma
 > máquina y la misma conexión a internet. Los tiempos pueden variar según el hardware
 > y la disponibilidad de la red.
+> Dicha comparativa se realizó una vez finalizado el laboratorio para hacer
+> una comparación directa de secuencial vs totalmente paralelizado (Hasta Ejercicio 5)
 
 #### Configuración del entorno de medición
 
@@ -434,9 +436,18 @@ acumuladores porque ninguna tarea se ha ejecutado aún.
 
 | Etapa | Versión secuencial | Versión Spark |
 |-------|-------------------|---------------|
-| Descarga + filtrado | _[20.328 s]_ | _[7.456 s]_ |
-| NER + conteo | _[0.238 s]_ | _[6.284 s]_ |
-| **Total** | _[20.566 s]_ | _[13.740 s]_ |
+| Descarga + filtrado | _[20.328 s]_ | _[6 s]_ |
+| NER + conteo | _[0.238 s]_ | _[0.3 s]_ |
+| **Total** | _[20.566 s]_ | _[~18 s]_ |
+
+#### Capturas de la Spark UI
+
+![Spark Jobs](SparkUI_Info1.png)
+![Spark Stages](SparkUI_Info2.png)
+
+**ANÁLISIS**:
+**Jobs:** 2 jobs completados. El Job 0 es el aggregate (descarga + filtrado) que tardó 6 segundos con 8 tasks. El Job 1 es el collect del pipeline NER que tardó 0.3 segundos con 16 tasks en 2 stages.
+**Stages:** 3 stages en total. El Stage 0 (aggregate) tardó 5 segundos. El Stage 1 (map) produjo 2.9 KiB de shuffle write con 4.7 KiB de input. El Stage 2 (collect) consumió esos 2.9 KiB de shuffle read — ese es el reduceByKey, la única barrera de sincronización visible en el grafo.
 
 #### Conclusiones
 
@@ -467,26 +478,31 @@ Para el volumen actual del laboratorio, el beneficio real de Spark no es la velo
 
 ## Ejercicio 5 — Acceso a datos y estadísticas del resultado
 
-a) En Main.scala no se utiliza .cache() ni .unpersist() sobre los RDD intermedios. Por eso, cada vez que se ejecuta una accion, spark vuelve a calcular todas las transformaciones desde el principio
+a) En Main.scala no se utiliza .cache() ni .unpersist() sobre los RDD intermedios. 
+Por eso, cada vez que se ejecuta una acción, Spark vuelve a calcular todas las 
+transformaciones desde el principio.
 
-Esto ocurre, por ejemplo, cuando se ejecutan allPostsRDD.count(), filteredPostsRDD.count() y el calculo de totalChars. En cada caso Spark vuelve a descargar los feeds, parsear los JSON y aplicar los filtros
-
-Algo similar sucede al obtener los resultados del NER mediante collect(). Como los RDD no estan almacenados en memoria, Spark vuelve a recorrer todo el pipeline y ejecuta nuevamente Analyzer.detectEntities() para cada post válido. Dado que esta es una de las operaciones mas costosas del programa, se produce un gasto innecesario de tiempo y recursos
+Esto ocurre en dos puntos concretos: la acción filteredPostsRDD.aggregate(...) 
+evalúa el pipeline completo incluyendo la descarga de feeds. Luego, la acción 
+reducedEntities.collect() vuelve a evaluar filteredPostsRDD desde el origen, 
+lo que implica descargar y procesar los feeds nuevamente. Dado que 
+Analyzer.detectEntities() es una de las operaciones más costosas del programa, 
+esta recomputación produce un gasto innecesario de tiempo y recursos.
 
 ---
 
 - **¿Que ocurriria si no llamaran a cache()? ¿Cuantas veces se ejecutaria la descarga de feeds?**
 
-Si no usaramos cache(), por la forma en que funciona Spark (lazy evaluation), cada vez que se ejecuta una accion como count(), reduce() o collect(), Spark tiene que volver a recorrer todas las transformaciones desde el principio. En este caso, eso incluye volver a descargar los feeds.
+Si no usáramos cache(), cada acción relanza todo el pipeline desde el principio 
+incluyendo la descarga de feeds. En el código final hay dos acciones que dependen 
+de filteredPostsRDD:
 
-Mirando el codigo, hay 5 acciones que dependen de esos datos:
+1. filteredPostsRDD.aggregate(...) — descarga + filtrado
+2. reducedEntities.collect() — que remonta la cadena hasta filteredPostsRDD para el NER
 
-1. allPostsRDD.count()
-2. filteredPostsRDD.count()
-3. reducedEntities.collect()
-4. entities.collect()
-
-Entonces, si no estuviera cache(), la descarga completa de feeds se haria 5 veces, una por cada accion. Como descargar los feeds es una operacion bastante costosa, el tiempo de ejecucion aumentaria mucho.
+Sin cache(), la descarga completa de feeds se ejecutaría 2 veces. Con cache() 
+sobre filteredPostsRDD, la segunda acción lee de memoria y la descarga ocurre 
+una sola vez.
 
 - **¿Por que es incorrecto llamar a collect() entre los pasos a) y b) del ejercicio 3 y luego continuar el pipeline? ¿Que consecuencia tiene sobre la distribucion del trabajo?**
 

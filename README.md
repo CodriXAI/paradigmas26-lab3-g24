@@ -52,6 +52,11 @@ SBT_OPTS="--add-exports=java.base/sun.nio.ch=ALL-UNNAMED" \
 sbt "run --subscription-file data/local_subscriptions.json --entities-dir data/valid_entities --top-k 10"
 ```
 
+Makefile:
+```bash
+make run
+```
+
 ### Command-Line Arguments
 
 All arguments are optional:

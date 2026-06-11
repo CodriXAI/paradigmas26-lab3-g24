@@ -207,6 +207,10 @@ object Main {
 
     entities.unpersist()
     filteredPostsRDD.unpersist()
+
+    println("=== PROGRAMA PAUSADO: Abrí http://localhost:4040 ===")
+    Thread.sleep(60000) // 60 segundos
+    
     spark.stop()
   }
 }
