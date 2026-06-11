@@ -107,7 +107,7 @@ object Main {
 
     // Timing the end of the download and filtering phase and printing the elapsed time
     val t1Download = System.currentTimeMillis()
-    println(s"[Time] Download and filtering: ${(t1Download - t0Download) / 1000.0} s")
+    println(s"[Tiempo] Descarga y filtrado: ${(t1Download - t0Download) / 1000.0} s")
 
     // ==========================================
     // EJERCICIO 2 - INCISO D
@@ -183,7 +183,8 @@ object Main {
 
     // Timing the end of the NER phase and printing the elapsed time
     val t1Ner = System.currentTimeMillis()
-    println(s"[Time] NER and entity counting: ${(t1Ner - t0Ner) / 1000.0} s")
+    println(s"[Tiempo] NER y conteo de entidades: ${(t1Ner - t0Ner) / 1000.0} s")
+
 
     // Deriving typeStats from entityCounts avoids calling entities.collect()
     // which would be a second action on the same lineage and would re-evaluate
