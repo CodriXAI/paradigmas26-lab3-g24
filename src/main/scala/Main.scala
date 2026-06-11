@@ -105,12 +105,16 @@ object Main {
 
     val avgChars = (totalChars / totalFilteredPosts).toInt
 
+    // ==========================================
+    // EJERCICIO 4 - INCISO B
+    // ==========================================
+    // Stats calculation for feed and post processing, using accumulators to track counts across the cluster
     val stats = Map(
-      "feedsSuccess"  -> 0, // will be replaced in exercise 4 with accumulators
-      "feedsFailed"   -> 0, // will be replaced in exercise 4 with accumulators
-      "postsSuccess"  -> totalPosts,
-      "postsFailed"   -> 0, // will be replaced in exercise 4 with accumulators
-      "postsFiltered" -> emptyPosts,
+      "feedsSuccess"  -> accFeedsSuccess.value.toInt,
+      "feedsFailed"   -> accFeedsFailed.value.toInt,
+      "postsSuccess"  -> accPostsTotal.value.toInt,
+      "postsFailed"   -> 0,
+      "postsFiltered" -> accPostsFiltered.value.toInt,
       "avgChars"      -> avgChars
     )
 
