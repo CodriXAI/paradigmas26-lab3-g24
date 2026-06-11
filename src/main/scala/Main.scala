@@ -78,7 +78,7 @@ object Main {
           accFeedsFailed.add(1)
           List[Post]()
       }
-    }
+    }.cache()
 
     // Changed from .filter() to .flatMap() to allow incrementing accPostsFiltered
     // within the transformation (workers can only write Accumulators).
@@ -89,7 +89,7 @@ object Main {
         accPostsFiltered.add(1)
         List.empty[Post]
       }
-    }
+    }.cache()
 
     // ==========================================
     // EJERCICIO 2 - INCISO C (ANTES) 
@@ -109,6 +109,8 @@ object Main {
       }
     )
 
+    allPostsRDD.unpersist()
+
     // Timing the end of the download and filtering phase and printing the elapsed time
     val t1Download = System.currentTimeMillis()
     println(s"[Tiempo] Descarga y filtrado: ${(t1Download - t0Download) / 1000.0} s")
@@ -119,6 +121,7 @@ object Main {
     // Check if there are no posts after the filter
     if(totalFilteredPosts == 0){
       println("Error: No valid posts downloaded after filtering")
+      filteredPostsRDD.unpersist()
       spark.stop()
       return
     }
@@ -147,6 +150,7 @@ object Main {
     val dictionary = Dictionary.loadAll(cmdArgs.entitiesDir)
     if (dictionary.isEmpty){
       println("Error: entities dictionary empty")
+      filteredPostsRDD.unpersist()
       spark.stop()
       return
     }
@@ -157,7 +161,7 @@ object Main {
       val text = post.title + " " + post.selftext
 
       Analyzer.detectEntities(text, dictionaryBCast.value)
-    }
+    }.cache()
 
     // ==========================================
     // EJERCICIO 3 - INCISO B
@@ -200,7 +204,9 @@ object Main {
     println(Formatters.formatTypeStats(typeStats))
     println()
     println(Formatters.formatEntityStats(entityCounts, cmdArgs.topK))
-    
+
+    entities.unpersist()
+    filteredPostsRDD.unpersist()
     spark.stop()
   }
 }
