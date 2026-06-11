@@ -332,3 +332,130 @@ La suma cumple ambas: `(2 + 3) + 4 == 2 + (3 + 4)` y `2 + 3 == 3 + 2` al igual q
 * **¿Dónde se hace la lectura del diccionario de entidades? ¿En el driver o los workers?**
 
 La lectura la realiza el **driver**, una sola vez antes de que comience el pipeline distribuido. Una vez cargado, se envía a los workers como una **broadcast variable**, lo que significa que Spark lo serializa y manda **una copia por worker** en lugar de una copia por tarea. Esto reduce significativamente el tráfico de red — sin broadcast, Spark enviaría el dictionary completo con cada tarea individual que lo necesite. Adicionalmente, para que Spark pueda serializar el dictionary, la clase `NamedEntity` debe implementar el trait `Serializable` — sin esto el pipeline falla al intentar distribuir el objeto a los workers.
+
+## Ejercicio 4 — Monitoreo del éxito de las tareas
+
+* **¿Por qué los Accumulators solo deben usarse para métricas y no para tomar decisiones lógicas dentro de las etapas distribuidas del pipeline? ¿En qué situación un Accumulator puede dar un valor incorrecto?**
+
+Los Accumulators son variables de escritura exclusiva para los workers: dentro de una transformación un worker puede hacer `.add()` pero si intentara leer `.value`, obtendría siempre el valor inicial (por ejemplo, `0`). El valor actualizado solo es visible para el driver. Esto hace que sean estructuralmente inapropiados para tomar decisiones lógicas distribuidas: el worker que preguntara "¿cuántos feeds fallaron hasta ahora?" no podría obtener una respuesta útil.
+
+Pero la razón más importante es la **falta de garantías de exactamente-una-vez**. Un
+Accumulator puede dar un valor incorrecto en las siguientes situaciones:
+
+**1. Re-ejecución de tareas por fallo.** Si Spark re-ejecuta una tarea debido a un error
+de nodo o timeout, el acumulador se incrementa de nuevo para los mismos datos. Spark
+descarta los valores de stages fallidos en la mayoría de los casos, pero el comportamiento
+depende de si el stage ya fue "commiteado" o no, y no está garantizado en todos los
+escenarios.
+
+**2. Evaluación múltiple del mismo RDD (el caso más común sin `cache()`).** Los RDDs son
+lazy y no se memorizan por defecto. Cada acción terminal que depende de un RDD
+vuelve a re-ejecutar toda su cadena de transformaciones desde el origen. En nuestro
+pipeline, sin `cache()`:
+
+- La acción `filteredPostsRDD.aggregate(...)` evalúa el pipeline completo una vez
+  → los cuatro acumuladores se incrementan **×1**.
+- La acción `filteredPostsRDD.map{...}.reduce(...)` (**presente en el código actual**)
+  vuelve a evaluar el pipeline desde `subscriptionsRDD`
+  → los acumuladores se incrementan **×2**.
+- La acción `reducedEntities.collect()` vuelve a evaluar `filteredPostsRDD`
+  (que es el origen de `entities` y por ende de `reducedEntities`)
+  → los acumuladores se incrementan **×3**.
+
+Después de todo el pipeline, `accFeedsSuccess.value` vale el triple del valor real. Como
+los acumuladores ya se leyeron correctamente después de la primera acción (antes de que
+existan las acciones posteriores), el output impreso es correcto; pero si se consultaran
+`.value` al final del programa, el número sería incorrecto. Esto se corrige en el
+Ejercicio 5 con `cache()`.
+
+**Corrección aplicada:** el `reduce` redundante sobre `filteredPostsRDD` se puede
+eliminar porque `totalCharsAgg` calculado en el `aggregate` ya contiene ese valor.
+Reemplazar `totalChars` por `totalCharsAgg` elimina la segunda evaluación y evita
+que los acumuladores se dupliquen.
+
+**3. Ejecución especulativa.** Spark puede lanzar una copia especulativa de una tarea
+lenta en otro nodo. Si ambas terminan, el acumulador puede quedar incrementado dos
+veces para los mismos datos.
+
+La conclusión es que un Accumulator es confiable como métrica de monitoreo si se lo
+lee exactamente una vez, justo después de la primera acción que lo alimenta, y si el
+RDD que lo produce no se re-evalúa antes de esa lectura.
+
+* **¿En qué momento del pipeline está disponible el valor de un Accumulator para ser leído por el driver?**
+
+Los Accumulators siguen el mismo modelo de evaluación lazy que los RDDs: las transformaciones (`flatMap`, `map`, `filter`, etc.) no ejecutan ningún código hasta que una **acción terminal** (`collect`, `count`, `aggregate`, `reduce`, etc.) es invocada.
+
+El valor de un Accumulator está disponible para el driver recién después de que la
+acción terminal que fuerza la evaluación del RDD que lo incrementa **completa y
+retorna al driver**. Más precisamente:
+
+1. La acción es invocada → Spark planifica los stages.
+2. Los workers ejecutan las transformaciones → cada worker llama a `.add()` en el
+   Accumulator local.
+3. Al finalizar cada tarea, el worker envía los deltas de los Accumulators al driver.
+4. El driver acumula los deltas a medida que las tareas completan.
+5. La acción terminal retorna → a partir de ese punto, `.value` refleja todos los
+   incrementos de esa ejecución.
+
+En nuestro pipeline, el momento exacto es el retorno de:
+
+```scala
+val (totalFilteredPosts, totalCharsAgg) = filteredPostsRDD.aggregate((0L, 0L))(...)
+// ← A partir de aquí, accFeedsSuccess.value, accFeedsFailed.value,
+//    accPostsTotal.value y accPostsFiltered.value son correctos y válidos.
+```
+
+Si se intentara leer `.value` antes de esa línea, por ejemplo entre la definición de
+`filteredPostsRDD` y la llamada a `aggregate`, se obtendría `0` para todos los
+acumuladores porque ninguna tarea se ha ejecutado aún.
+
+* **Comparen el tiempo que tarda cada etapa del pipeline que midieron en la versión no paralelizada y la versión con Spark. ¿Qué conclusiones pueden sacar? Para la cantidad de datos que estamos trabajando, ¿se aprecia la diferencia? Justifique por qué. Nota: La comparación debe realizarse en ejecuciones sobre la misma computadora y la misma conexión a internet.**
+
+
+> **Nota:** los valores de tiempo en la tabla son mediciones reales sobre la misma
+> máquina y la misma conexión a internet. Los tiempos pueden variar según el hardware
+> y la disponibilidad de la red.
+
+#### Configuración del entorno de medición
+
+| Parámetro | Valor |
+|-----------|-------|
+| Máquina   | _[completar: CPU, RAM]_ |
+| JVM       | Java 17 |
+| Spark     | 3.x, modo `local[*]` |
+| Feeds     | 3 suscripciones (mock local en `localhost:8123`) |
+
+#### Tabla de tiempos medidos
+
+| Etapa | Versión secuencial | Versión Spark |
+|-------|-------------------|---------------|
+| Descarga + parseo + filtrado | _[X.X s]_ | _[X.X s]_ |
+| NER + conteo + ranking | _[X.X s]_ | _[X.X s]_ |
+| **Total** | _[X.X s]_ | _[X.X s]_ |
+
+#### Conclusiones
+
+**Para la cantidad de datos del laboratorio (3–5 feeds, ~25 posts cada uno), la versión con Spark no muestra una mejora significativa de tiempo** respecto a la versión secuencial. La razón es que el trabajo útil es mínimo: unas pocas solicitudes HTTP y el análisis de pocas decenas de posts. El overhead de Spark es estructuralmente mayor que el cómputo que se pretende distribuir.
+
+Las fuentes de overhead de Spark en este escenario son:
+
+- **Inicialización de la SparkSession:** levantar el scheduler, el block manager y los
+  contextos de Hadoop y Akka tarda entre 1 y 3 segundos independientemente del tamaño del input.
+- **Serialización y deserialización de tareas:** cada función que se pasa a `flatMap` o `map` se serializa como un closure Java y se envía al executor (incluso en modo `local[*]`, donde driver y executor comparten JVM, hay serialización).
+- **Planificación de stages y tasks:** Spark construye el DAG, lo divide en stages y
+  planifica tasks por partición. Con pocas suscripciones, el grafo es trivial pero el costo fijo de planificación existe.
+- **Warm-up de la JVM:** las primeras compilaciones JIT de las funciones críticas del pipeline ocurren durante la ejecución, no antes.
+
+**¿En qué escenario se apreciaría la diferencia?**
+
+La ventaja de Spark se vuelve observable cuando:
+
+- El número de feeds escala a cientos o miles: la descarga paralela distribuye la
+  latencia de red entre workers, reduciendo el tiempo total de O(n) a O(n/w) donde
+  w es el número de workers.
+- El cuerpo de los posts es grande: el cómputo de NER (string matching sobre texto
+  extenso) se distribuye entre particiones, aprovechando múltiples cores.
+- El clúster es multi-nodo: los workers ejecutan en máquinas distintas, eliminando
+  la contención de recursos.
+
+Para el volumen actual del laboratorio, el beneficio real de Spark no es la velocidad sino la **escalabilidad**: el mismo código que procesa 3 feeds hoy puede procesar 3000 mañana sin modificar una sola línea, simplemente agregando workers.
